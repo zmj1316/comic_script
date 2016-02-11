@@ -1,4 +1,4 @@
 # comic_spider
 download comics from www.1kkk.com
-# requires
+# requirements
 PyV8 and BeautifulSoup
