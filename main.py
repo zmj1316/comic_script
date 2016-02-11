@@ -3,6 +3,10 @@ import copy
 import os
 import threading
 import re
+
+import sys
+import traceback
+
 from bs4 import BeautifulSoup
 import requests
 import Queue
@@ -73,10 +77,6 @@ class Processor(threading.Thread):
                 print self.name + ' downloaded ' + chapter + str(n)
 
 
-s = BeautifulSoup(requests.get('http://www.1kkk.com/manhua12063/').text)
-chs = s.find_all(attrs={'class': 'sy_nr1 cplist_ullg'})[1]
-
-
 def get_range(c):
     r = requests.get(url_gen(c))
     s = re.search(u'总<span>(\\d+)</span>页', r.text).group(1)
@@ -84,18 +84,39 @@ def get_range(c):
     return int(s)
 
 
-count = 0
-for i in chs.find_all(name='a'):
-    c = i.get('href')
-    count += 1
-    if count < 148:
-        continue
-    for n in range(get_range(c)):
-        print c + str(n + 1) + ' added'
-        q.put((c, n + 1))
-        # download(c, n + 1)
-with PyV8.JSLocker():
-    for i in xrange(5):
-        p = Processor('Processor' + str(i))
-        # p.setDaemon(False)
-        p.start()
+if __name__ == '__main__':
+    try:
+        manga = raw_input(u'输入漫画地址'.encode("GBK"))
+        while not manga.startswith('http://www.1kkk.com/') or manga.startswith('www.1kkk.com'):
+            print u'地址格式错误'.encode("GBK")
+            manga = raw_input(u'输入漫画地址'.encode("GBK"))
+        s = BeautifulSoup(requests.get(manga).text)
+        chs = s.find_all(attrs={'class': 'sy_nr1 cplist_ullg'})[1]
+        chapters = chs.find_all(name='a')
+        chapter_count = len(chapters)
+        print u'共%d章'.encode("GBK") % chapter_count
+        head = int(raw_input(u'输入起始章节号，默认为1'.encode("GBK")) or '1')
+        tail = int(raw_input(u'输入结束章节号，默认为'.encode("GBK") + str(chapter_count)) or str(chapter_count))
+        count = 0
+        for i in chs.find_all(name='a'):
+            c = i.get('href')
+            count += 1
+            if count < head:
+                continue
+            if count > tail:
+                break
+            for n in range(get_range(c)):
+                print c + str(n + 1) + ' added'
+                q.put((c, n + 1))
+        with PyV8.JSLocker():
+            for i in xrange(5):
+                p = Processor('Processor' + str(i))
+                # p.setDaemon(False)
+                p.start()
+        while not q.empty():
+            pass
+    except (KeyboardInterrupt, SystemExit):
+        print u'用户中断'.encode("GBK")
+        sys.exit(1)
+    except Exception as e:
+        traceback.print_exc()
