@@ -12,6 +12,8 @@ import requests
 import Queue
 import PyV8
 
+q = Queue.Queue()
+
 headers = {'Pragma': 'no-cache',
            'DNT': '1',
            'Accept-Encoding': 'gzip, deflate, sdch',
@@ -25,7 +27,7 @@ headers = {'Pragma': 'no-cache',
            'Cache-Control': 'no-cache'
            }
 
-url = 'http://www.dm5.com/manhua-chaonenglizhejimunanxiongdezainan/'
+url = 'http://www.dm5.com/manhua-grandblue/'
 
 
 def Log(text):
@@ -57,6 +59,9 @@ def extract_id(chapter=''):
 
 
 def download(path, chapter='', pagenum=0):
+    file_path = os.path.join(path, '%03d.jpg' % pagenum)
+    if os.path.isfile(file_path):
+        return
     url = url_gen(chapter, pagenum)
     myheaders = copy.copy(headers)
     myheaders['Referer'] = url
@@ -78,7 +83,7 @@ def download(path, chapter='', pagenum=0):
     else:
         if not os.path.exists(path):
             os.mkdir(path)
-        with open(os.path.join(path, '%03d.jpg' % pagenum), 'wb') as f:
+        with open(file_path, 'wb') as f:
             f.write(r.content)
             return True
 
@@ -93,6 +98,20 @@ def doChapter(chapter_turple):
     count = 0
     while download(chapter_turple[1], chapter_turple[0], count):
         count += 1
+    return True
+
+class Processor(threading.Thread):
+    def __init__(self, threadname):
+        threading.Thread.__init__(self, name=threadname)
+
+    def run(self):
+        while not q.empty():
+            chapter = q.get()
+            print chapter[1].encode('utf-8') + ' started'
+            if not doChapter(chapter):
+                print 'Download error'
+            else:
+                print self.name + ' downloaded '
 
 if __name__ == '__main__':
     r = requests.get(url)
@@ -107,6 +126,13 @@ if __name__ == '__main__':
             chapters.append((href, title.replace(' ', '')))
 
     chapters.reverse()
-    # for i in chapters[0:5]:
-    #     download(i[1],i[0],1)
+    for i in chapters[7:]:
+        q.put(i)
 
+    with PyV8.JSLocker():
+        for i in xrange(5):
+            p = Processor('Processor' + str(i))
+            # p.setDaemon(False)
+            p.start()
+    while not q.empty():
+        pass
