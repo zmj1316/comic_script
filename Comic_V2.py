@@ -27,7 +27,7 @@ headers = {'Pragma': 'no-cache',
            'Cache-Control': 'no-cache'
            }
 
-url = 'http://www.dm5.com/manhua-grandblue/'
+url = 'http://www.dm5.com/manhua-gaofenshaonv/'
 
 
 def Log(text):
@@ -61,7 +61,7 @@ def extract_id(chapter=''):
 def download(path, chapter='', pagenum=0):
     file_path = os.path.join(path, '%03d.jpg' % pagenum)
     if os.path.isfile(file_path):
-        return
+        return True
     url = url_gen(chapter, pagenum)
     myheaders = copy.copy(headers)
     myheaders['Referer'] = url
@@ -95,10 +95,20 @@ def getChapterCount(chapter):
     return count
 
 def doChapter(chapter_turple):
-    count = 0
-    while download(chapter_turple[1], chapter_turple[0], count):
-        count += 1
-    return True
+    count = 1
+    try:
+        while download(chapter_turple[1], chapter_turple[0], count):
+            count += 1
+            if(count>chapter_turple[2]):
+                return True
+        return True
+    except Exception as e:
+        return False
+    else:
+        pass
+    finally:
+        pass
+
 
 class Processor(threading.Thread):
     def __init__(self, threadname):
@@ -111,7 +121,7 @@ class Processor(threading.Thread):
             if not doChapter(chapter):
                 print 'Download error'
             else:
-                print self.name + ' downloaded '
+                print chapter[1] + ' downloaded '
 
 if __name__ == '__main__':
     r = requests.get(url)
@@ -119,15 +129,24 @@ if __name__ == '__main__':
     lans = soup.find_all(attrs={'class': 'nr6 lan2'})[:-1]
     chapters = []
     for i in lans:
-        chs = i.find_all(name='a')
+        chs = i.find_all(name='li')
         for c in chs:
-            href = c.get('href')
-            title = c.get('title')
-            chapters.append((href, title.replace(' ', '')))
+            aa = c.find_all(name = 'a')[0]
+            href = aa.get('href')
+            title = aa.get('title')
+            suf_length = len(aa.text)
+            pages = c.text[suf_length:]
+            print pages
+            page = re.search(r'(\d+)', pages).group(1)
+            print str(int(page))
+            chapters.append([href, title.replace(' ', ''),int(page)])
 
     chapters.reverse()
-    for i in chapters[7:]:
+    index = 1
+    for i in chapters:
+        i[1] = "%03d-%s" %(index,i[1])
         q.put(i)
+        index += 1
 
     with PyV8.JSLocker():
         for i in xrange(5):
